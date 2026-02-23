@@ -1,0 +1,12 @@
+API Reference
+=============
+
+This API reference is built from NumPy-style docstrings and organized by module area.
+
+.. toctree::
+   :maxdepth: 2
+
+   pipeline
+   integrations
+   abm
+   io_and_utils

@@ -1,0 +1,4 @@
+sphinx>=7.2
+numpydoc>=1.6
+nbsphinx>=0.9
+ipykernel>=6.0

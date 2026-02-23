@@ -1,0 +1,6 @@
+name: optimistic_courtyard_city
+transit_investment_intensity: 1.1
+green_budget: 1.05
+street_conversion_budget: 1.0
+intensity_budget: 1.1
+terrain_sensitivity: 1.0

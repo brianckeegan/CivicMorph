@@ -1,0 +1,6 @@
+name: transit_corridor_city
+transit_investment_intensity: 1.3
+green_budget: 0.95
+street_conversion_budget: 1.15
+intensity_budget: 1.2
+terrain_sensitivity: 0.95

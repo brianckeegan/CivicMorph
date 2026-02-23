@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "civicmorph"
+version = "0.1.0"
+description = "Speculative ensemble urban plan generator for post-suburban metros."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [
+  { name = "CivicMorph Contributors" }
+]
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "scipy>=1.11",
+  "networkx>=3.2",
+  "pyyaml>=6.0",
+  "matplotlib>=3.8",
+  "folium>=0.16",
+  "shapely>=2.0",
+  "geopandas>=0.14",
+  "rasterio>=1.3",
+  "pyproj>=3.6",
+  "pyarrow>=14",
+  "pydantic>=2.7",
+  "typer>=0.12"
+]
+
+[project.optional-dependencies]
+graph2city = ["graph2city"]
+abm = ["mesa>=2,<3"]
+frameworks = ["graph2city", "mesa>=2,<3"]
+docs = ["sphinx>=7.2", "numpydoc>=1.6", "nbsphinx>=0.9", "ipykernel>=6.0"]
+
+[project.scripts]
+civicmorph = "civicmorph.cli:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/civicmorph"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
