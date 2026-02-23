@@ -32,7 +32,8 @@ dependencies = [
 [project.optional-dependencies]
 graph2city = ["graph2city"]
 abm = ["mesa>=2,<3"]
-frameworks = ["graph2city", "mesa>=2,<3"]
+osm = ["pyrosm>=0.6"]
+frameworks = ["graph2city", "mesa>=2,<3", "pyrosm>=0.6"]
 docs = ["sphinx>=7.2", "numpydoc>=1.6", "nbsphinx>=0.9", "ipykernel>=6.0"]
 
 [project.scripts]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -29,7 +30,9 @@ def test_core_pipeline_without_extras(tmp_path: Path, dummy_inputs: dict[str, Pa
     assert len(scores) == 6
     assert len(exports) == 3
     assert (run_dir / "exports" / "top_1_composite.png").exists()
+    assert (run_dir / "exports" / "top_1_thematic_panels.png").exists()
     assert (run_dir / "exports" / "top_1_interactive.html").exists()
+    assert "thematic_png" in exports[0]
 
 
 def test_graph2city_seed_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, dummy_inputs: dict[str, Path]) -> None:
@@ -95,6 +98,7 @@ def test_export_graph2city_out(
     exported = export_top_plans(project_dir=run_dir, top_n=2, graph2city_out=True)
     assert len(exported) == 2
     assert (run_dir / "exports" / "graph2city").exists()
+    assert "thematic_png" in exported[0]
 
 
 def test_hybrid_seed_respects_human_scale_caps(
@@ -128,3 +132,64 @@ def test_hybrid_seed_respects_human_scale_caps(
         "view_shed_value_score",
     }
     assert required.issubset(sample.columns)
+
+
+def test_build_baseline_with_place_selector(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_place"
+    ctx = build_baseline(
+        osm_pbf=None,
+        place_name="Boulder, Colorado",
+        project_dir=run_dir,
+    )
+
+    assert ctx.metadata["osm"]["source_mode"] == "place_name"
+    assert (run_dir / "baseline" / "osm_streets.parquet").exists() or (
+        run_dir / "baseline" / "osm_streets.parquet.csv"
+    ).exists()
+
+
+def test_build_baseline_with_polygon_and_constraint_masks(tmp_path: Path) -> None:
+    polygon_path = tmp_path / "boulder_polygon.geojson"
+    polygon_path.write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {},
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [-105.35, 39.95],
+                                    [-105.17, 39.95],
+                                    [-105.17, 40.08],
+                                    [-105.35, 40.08],
+                                    [-105.35, 39.95],
+                                ]
+                            ],
+                        },
+                    }
+                ],
+            }
+        )
+    )
+    mask_a = tmp_path / "mask_a.geojson"
+    mask_b = tmp_path / "mask_b.geojson"
+    mask_a.write_text("{\"type\":\"FeatureCollection\",\"features\":[]}")
+    mask_b.write_text("{\"type\":\"FeatureCollection\",\"features\":[]}")
+
+    run_dir = tmp_path / "run_polygon"
+    ctx = build_baseline(
+        osm_pbf=None,
+        study_area=str(polygon_path),
+        constraint_masks=[str(mask_a), str(mask_b)],
+        project_dir=run_dir,
+    )
+
+    assert ctx.metadata["osm"]["source_mode"] == "study_area"
+    assert ctx.metadata["constraint_masks_count"] == 2
+    assert "dem_source" in ctx.metadata
+    assert "flood_source" in ctx.metadata
+    assert "constraint_masks" in ctx.metadata

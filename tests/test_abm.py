@@ -82,3 +82,67 @@ def test_abm_penalty_monotonic_for_worse_access(monkeypatch: pytest.MonkeyPatch,
     bad = run_mesa_evaluation(bad_member, baseline, cfg, seed=3)
 
     assert bad.abm_penalty >= good.abm_penalty
+
+
+@pytest.mark.parametrize(
+    "mode,ca_tessellation",
+    [
+        ("abm", "grid"),
+        ("dla", "grid"),
+        ("ca", "grid"),
+        ("ca", "hex"),
+        ("network", "grid"),
+        ("multi_scale", "grid"),
+    ],
+)
+def test_supported_mesa_simulation_modes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mode: str,
+    ca_tessellation: str,
+) -> None:
+    monkeypatch.setattr("civicmorph.abm.mesa_runner.validate_mesa_version", lambda: "2.1.1")
+    member, baseline = _build_plan(tmp_path / f"mode_{mode}_{ca_tessellation}", member_id=3, factor=0.45)
+
+    cfg = ABMConfig(
+        max_agents=180,
+        ticks=18,
+        simulation_mode=mode,
+        ca_tessellation=ca_tessellation,
+    )
+    result = run_mesa_evaluation(member, baseline, cfg, seed=4)
+
+    assert result.abm_mode == mode
+    assert 0.0 <= result.abm_non_auto_mode_share <= 1.0
+    assert 0.0 <= result.abm_public_space_visit_rate <= 1.0
+    assert 0.0 <= result.abm_access_equity_gap <= 1.0
+    assert 0.0 <= result.abm_growth_focus_index <= 1.0
+    assert 0.0 <= result.abm_capacity_utilization <= 1.0
+    assert 0.0 <= result.abm_network_access_gain <= 1.0
+
+
+def test_network_interventions_increase_network_gain(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("civicmorph.abm.mesa_runner.validate_mesa_version", lambda: "2.1.1")
+    member, baseline = _build_plan(tmp_path / "network_compare", member_id=7, factor=0.35)
+
+    low_cfg = ABMConfig(
+        simulation_mode="network",
+        network_new_links=1,
+        network_bus_lane_km=2.0,
+        network_station_infill=0,
+        ticks=15,
+    )
+    high_cfg = ABMConfig(
+        simulation_mode="network",
+        network_new_links=7,
+        network_bus_lane_km=25.0,
+        network_station_infill=5,
+        ticks=15,
+    )
+
+    low = run_mesa_evaluation(member, baseline, low_cfg, seed=9)
+    high = run_mesa_evaluation(member, baseline, high_cfg, seed=9)
+    assert high.abm_network_access_gain >= low.abm_network_access_gain

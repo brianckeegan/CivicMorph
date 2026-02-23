@@ -26,7 +26,7 @@ from .io import (
     write_dataframe,
     write_json,
 )
-from .render import render_composite_png, render_interactive_html
+from .render import render_composite_png, render_interactive_html, render_thematic_panels_png
 from .sampling import sample_ensemble_parameters
 from .scoring import compute_static_scores, member_signature, pareto_frontier, select_diverse_top
 from .synthesis import generate_green_network, generate_member_cells, generate_street_layer
@@ -96,9 +96,15 @@ def _member_paths(project_dir: Path, member_id: int) -> PlanMember:
 
 
 def build_baseline(
-    osm_pbf: str,
+    osm_pbf: str | None = None,
+    place_name: str | None = None,
+    study_area: str | None = None,
     dem: str | None = None,
     flood: str | None = None,
+    constraint_masks: list[str] | None = None,
+    transit_headway_bus: float = 12.0,
+    transit_headway_tram: float = 10.0,
+    transit_headway_rail: float = 8.0,
     project_dir: str | Path | None = None,
     graph2city_in: str | None = None,
 ) -> BaselineContext:
@@ -106,12 +112,24 @@ def build_baseline(
 
     Parameters
     ----------
-    osm_pbf : str
+    osm_pbf : str or None, default=None
         OSM PBF input file path.
+    place_name : str or None, default=None
+        Optional place name selector for OSM extraction mode.
+    study_area : str or None, default=None
+        Optional polygon selector path.
     dem : str or None, default=None
         Optional DEM file path.
     flood : str or None, default=None
         Optional flood layer file path.
+    constraint_masks : list of str or None, default=None
+        Optional user-supplied constraint mask paths.
+    transit_headway_bus : float, default=12.0
+        Bus headway assumption (minutes) when GTFS is absent.
+    transit_headway_tram : float, default=10.0
+        Tram headway assumption (minutes) when GTFS is absent.
+    transit_headway_rail : float, default=8.0
+        Rail headway assumption (minutes) when GTFS is absent.
     project_dir : str or Path or None, default=None
         Optional run directory.
     graph2city_in : str or None, default=None
@@ -126,9 +144,17 @@ def build_baseline(
     resolved = resolve_project_dir(project_dir, create_if_missing=True)
     ctx = build_baseline_impl(
         project_dir=resolved,
-        osm_pbf=Path(osm_pbf),
+        osm_pbf=Path(osm_pbf) if osm_pbf else None,
+        place_name=place_name,
+        study_area=Path(study_area) if study_area else None,
         dem=Path(dem) if dem else None,
         flood=Path(flood) if flood else None,
+        constraint_masks=[Path(p) for p in (constraint_masks or [])],
+        transit_headway_assumptions={
+            "bus": float(transit_headway_bus),
+            "tram": float(transit_headway_tram),
+            "rail": float(transit_headway_rail),
+        },
     )
 
     if graph2city_in:
@@ -140,6 +166,11 @@ def build_baseline(
             "project_dir": str(resolved),
             "baseline": ctx.metadata,
             "graph2city_enabled": bool(graph2city_in),
+            "osm_selector": {
+                "osm_pbf": osm_pbf,
+                "place_name": place_name,
+                "study_area": study_area,
+            },
         },
         resolved / "run_manifest.json",
     )
@@ -316,6 +347,18 @@ def score_ensemble(
     with_abm: bool = False,
     abm_top: int = 10,
     seed: int = 1,
+    abm_mode: str = "abm",
+    ca_tessellation: str = "grid",
+    policy_upzone: float = 1.0,
+    policy_transit_investment: float = 1.0,
+    policy_affordable_housing: float = 1.0,
+    policy_parking_reduction: float = 1.0,
+    policy_green_protection: float = 1.0,
+    network_new_links: int = 3,
+    network_bus_lane_km: float = 12.0,
+    network_station_infill: int = 2,
+    regional_growth_boundary: float = 1.0,
+    regional_conservation_share: float = 0.20,
 ) -> pd.DataFrame:
     """Compute static scores and optional ABM-adjusted scores.
 
@@ -329,6 +372,30 @@ def score_ensemble(
         Number of top static members to evaluate with ABM.
     seed : int, default=1
         Deterministic seed for ABM simulation.
+    abm_mode : str, default="abm"
+        Mesa simulation option: ``abm``, ``dla``, ``ca``, ``network``, or ``multi_scale``.
+    ca_tessellation : str, default="grid"
+        CA tessellation mode: ``grid`` or ``hex``.
+    policy_upzone : float, default=1.0
+        Relative strength of upzoning policy lever.
+    policy_transit_investment : float, default=1.0
+        Relative strength of transit investment policy lever.
+    policy_affordable_housing : float, default=1.0
+        Relative strength of affordability policy lever.
+    policy_parking_reduction : float, default=1.0
+        Relative strength of parking reduction policy lever.
+    policy_green_protection : float, default=1.0
+        Relative strength of green-space protection policy lever.
+    network_new_links : int, default=3
+        Count of new network links for network-growth modes.
+    network_bus_lane_km : float, default=12.0
+        Added bus-priority lane kilometers for network-growth modes.
+    network_station_infill : int, default=2
+        Number of station infill interventions for network-growth modes.
+    regional_growth_boundary : float, default=1.0
+        Regional growth boundary scaling for multi-scale mode.
+    regional_conservation_share : float, default=0.20
+        Regional conservation share for multi-scale mode.
 
     Returns
     -------
@@ -357,11 +424,28 @@ def score_ensemble(
     scores["abm_median_daily_needs_minutes"] = np.nan
     scores["abm_public_space_visit_rate"] = np.nan
     scores["abm_access_equity_gap"] = np.nan
+    scores["abm_growth_focus_index"] = np.nan
+    scores["abm_capacity_utilization"] = np.nan
+    scores["abm_network_access_gain"] = np.nan
+    scores["abm_mode"] = np.nan
     scores["abm_penalty"] = 0.0
 
     baseline = _baseline_context(project)
     if with_abm:
-        abm_cfg = ABMConfig()
+        abm_cfg = ABMConfig(
+            simulation_mode=abm_mode,
+            ca_tessellation=ca_tessellation,
+            policy_upzone=policy_upzone,
+            policy_transit_investment=policy_transit_investment,
+            policy_affordable_housing=policy_affordable_housing,
+            policy_parking_reduction=policy_parking_reduction,
+            policy_green_protection=policy_green_protection,
+            network_new_links=int(network_new_links),
+            network_bus_lane_km=float(network_bus_lane_km),
+            network_station_infill=int(network_station_infill),
+            regional_growth_boundary_factor=float(regional_growth_boundary),
+            regional_conservation_share=float(regional_conservation_share),
+        )
         to_eval = scores.sort_values("static_final", ascending=False).head(max(1, abm_top))
 
         abm_rows: list[pd.DataFrame] = []
@@ -376,19 +460,24 @@ def score_ensemble(
             abm_summary = pd.concat(abm_rows, ignore_index=True)
             write_dataframe(abm_summary, abm_dir / "abm_summary.parquet")
             scores = scores.merge(abm_summary, on="member_id", how="left", suffixes=("", "_abm"))
-            scores["abm_non_auto_mode_share"] = scores["abm_non_auto_mode_share_abm"].combine_first(
-                scores["abm_non_auto_mode_share"]
-            )
-            scores["abm_median_daily_needs_minutes"] = scores[
-                "abm_median_daily_needs_minutes_abm"
-            ].combine_first(scores["abm_median_daily_needs_minutes"])
-            scores["abm_public_space_visit_rate"] = scores["abm_public_space_visit_rate_abm"].combine_first(
-                scores["abm_public_space_visit_rate"]
-            )
-            scores["abm_access_equity_gap"] = scores["abm_access_equity_gap_abm"].combine_first(
-                scores["abm_access_equity_gap"]
-            )
-            scores["abm_penalty"] = scores["abm_penalty_abm"].fillna(scores["abm_penalty"])
+            abm_columns = [
+                "abm_non_auto_mode_share",
+                "abm_median_daily_needs_minutes",
+                "abm_public_space_visit_rate",
+                "abm_access_equity_gap",
+                "abm_growth_focus_index",
+                "abm_capacity_utilization",
+                "abm_network_access_gain",
+                "abm_mode",
+                "abm_penalty",
+            ]
+            for col in abm_columns:
+                abm_col = f"{col}_abm"
+                if abm_col in scores.columns:
+                    if col == "abm_penalty":
+                        scores[col] = scores[abm_col].fillna(scores[col])
+                    else:
+                        scores[col] = scores[abm_col].combine_first(scores[col])
 
             drop_cols = [c for c in scores.columns if c.endswith("_abm")]
             scores.drop(columns=drop_cols, inplace=True)
@@ -449,6 +538,7 @@ def export_top_plans(
     """
 
     project = resolve_project_dir(project_dir, create_if_missing=False)
+    baseline = _baseline_context(project)
     scores_path = project / "scoring" / "member_scores.parquet"
     scores = read_dataframe(scores_path)
 
@@ -472,6 +562,7 @@ def export_top_plans(
         stops_path = member.member_dir / "transit_stops.parquet"
 
         png_path = exports_dir / f"top_{rank}_composite.png"
+        thematic_path = exports_dir / f"top_{rank}_thematic_panels.png"
         html_path = exports_dir / f"top_{rank}_interactive.html"
         layers_path = exports_dir / f"top_{rank}_layers.gpkg"
 
@@ -483,6 +574,16 @@ def export_top_plans(
             green_path=member.green_path,
             streets_path=member.streets_path,
             out_png=png_path,
+            crs=baseline.crs,
+        )
+        render_thematic_panels_png(
+            cells_path=member.cells_path,
+            blocks_path=member.blocks_path,
+            lines_path=lines_path,
+            green_path=member.green_path,
+            streets_path=member.streets_path,
+            out_png=thematic_path,
+            crs=baseline.crs,
         )
         render_interactive_html(
             cells_path=member.cells_path,
@@ -490,6 +591,9 @@ def export_top_plans(
             stops_path=stops_path,
             green_path=member.green_path,
             out_html=html_path,
+            blocks_path=member.blocks_path,
+            streets_path=member.streets_path,
+            crs=baseline.crs,
         )
 
         cells = read_dataframe(member.cells_path)
@@ -516,6 +620,7 @@ def export_top_plans(
             "member_id": member_id,
             "final_with_abm": float(row["final_with_abm"]),
             "png": str(png_path),
+            "thematic_png": str(thematic_path),
             "html": str(html_path),
             "layers": str(layers_path),
         }

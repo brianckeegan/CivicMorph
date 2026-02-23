@@ -1,7 +1,8 @@
 Getting Started (Boulder, Colorado)
 ===================================
 
-This quick start walks through the full CivicMorph flow for Boulder, Colorado.
+This quick start walks through the full CivicMorph flow for Boulder, Colorado, including
+revised Mesa simulation options.
 
 Prerequisites
 -------------
@@ -10,7 +11,8 @@ Prerequisites
 - Optional extras for integrations:
   - ``pip install -e .[graph2city]``
   - ``pip install -e .[abm]``
-- Local Boulder data files:
+  - ``pip install -e .[osm]``
+- Local Boulder data files (if using local PBF mode):
   - ``data/boulder/boulder.osm.pbf``
   - ``data/boulder/boulder_dem.tif``
   - optional flood layer: ``data/boulder/boulder_flood.tif``
@@ -42,18 +44,103 @@ Run the Boulder Pipeline
    civicmorph score \
      --project-dir runs/boulder_demo \
      --with-abm \
-     --abm-top 10
+     --abm-top 10 \
+     --abm-mode abm
 
    civicmorph export \
      --project-dir runs/boulder_demo \
      --top 5
 
+Alternative OSM Selectors
+-------------------------
+
+You can start from place name or polygon selectors instead of a local PBF:
+
+.. code-block:: bash
+
+   civicmorph build-baseline \
+     --place "Boulder, Colorado" \
+     --project-dir runs/boulder_place
+
+   civicmorph build-baseline \
+     --study-area data/boulder/boulder_polygon.geojson \
+     --constraint-mask data/boulder/water_mask.geojson \
+     --constraint-mask data/boulder/conservation_mask.geojson \
+     --project-dir runs/boulder_polygon
+
+Mesa Simulation Options
+-----------------------
+
+`score` supports five Mesa simulation options:
+
+- ``abm``: heterogeneous households/developers/employers + planner/transit operator feedback loop.
+- ``dla``: DLA-inspired development event attachment around seed nodes and attraction gradients.
+- ``ca``: stochastic cellular automata transitions on ``grid`` or ``hex`` tessellation.
+- ``network``: street/transit intervention simulation (new links, bus lanes, station infill).
+- ``multi_scale``: coupled parcel/cell + corridor + regional-growth/conservation behavior.
+
+Key runtime levers:
+
+- Policy: ``--policy-upzone``, ``--policy-transit-investment``, ``--policy-affordable-housing``, ``--policy-parking-reduction``, ``--policy-green-protection``
+- CA-specific: ``--ca-tessellation``
+- Network-specific: ``--network-new-links``, ``--network-bus-lane-km``, ``--network-station-infill``
+- Multi-scale regional controls: ``--regional-growth-boundary``, ``--regional-conservation-share``
+
+Mode-Specific Scoring Examples
+------------------------------
+
+DLA-inspired growth:
+
+.. code-block:: bash
+
+   civicmorph score \
+     --project-dir runs/boulder_demo \
+     --with-abm \
+     --abm-mode dla \
+     --policy-upzone 1.1 \
+     --policy-parking-reduction 1.2
+
+Cellular automata on hex tessellation:
+
+.. code-block:: bash
+
+   civicmorph score \
+     --project-dir runs/boulder_demo \
+     --with-abm \
+     --abm-mode ca \
+     --ca-tessellation hex \
+     --policy-green-protection 1.2
+
+Network + multi-scale objective bundle:
+
+.. code-block:: bash
+
+   civicmorph score \
+     --project-dir runs/boulder_demo \
+     --with-abm \
+     --abm-mode multi_scale \
+     --policy-upzone 1.2 \
+     --policy-transit-investment 1.3 \
+     --network-new-links 6 \
+     --network-bus-lane-km 24 \
+     --network-station-infill 4 \
+     --regional-growth-boundary 0.95 \
+     --regional-conservation-share 0.3
+
 What to Inspect
 ---------------
 
-- ``runs/boulder_demo/scoring/member_scores.parquet`` for score distributions.
+- ``runs/boulder_demo/scoring/member_scores.parquet`` for score distributions and ABM mode outputs.
 - ``runs/boulder_demo/scoring/pareto_frontier.parquet`` for efficient tradeoffs.
+- ``runs/boulder_demo/abm/abm_summary.parquet`` for per-member simulation metrics.
 - ``runs/boulder_demo/exports/top_1_interactive.html`` for the composite map.
+
+New ABM summary fields include:
+
+- ``abm_mode``
+- ``abm_growth_focus_index``
+- ``abm_capacity_utilization``
+- ``abm_network_access_gain``
 
 Optional Graph2City Integration
 -------------------------------
