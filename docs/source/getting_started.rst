@@ -159,3 +159,12 @@ If you have a Boulder Graph2City seed package:
      --profile transit_corridor_city \
      --seed-source hybrid \
      --graph2city-in data/boulder/graph2city_seed
+
+Further Framework Introductions
+-------------------------------
+
+For additional conceptual onboarding and framework context, continue with:
+
+- :doc:`user_guide/framework_introduction`
+- :doc:`user_guide/framework_workflow`
+- :doc:`user_guide/framework_interoperability`
