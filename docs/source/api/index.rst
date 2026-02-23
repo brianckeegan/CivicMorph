@@ -6,6 +6,7 @@ This API reference is built from NumPy-style docstrings and organized by module 
 .. toctree::
    :maxdepth: 2
 
+   config
    pipeline
    integrations
    abm

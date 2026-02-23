@@ -101,6 +101,62 @@ flood_table, flood_meta = retrieve_flood_data(None, dem_table=dem_table, seed_to
 - `--seed-source graph2city --graph2city-in path/to/seed`
 - `--seed-source hybrid --graph2city-in path/to/seed`
 
+## Profiles and Parameters
+
+Profiles are YAML files in `config/profiles/` that scale generation behavior.
+Use them with `civicmorph generate --profile <name>`.
+
+Profile parameter definitions:
+
+| Parameter | Type | Default | Used by generator | Practical effect |
+|---|---:|---:|---|---|
+| `name` | `str` | profile filename | metadata | Scenario identifier in artifacts/logs. |
+| `transit_investment_intensity` | `float` | `1.0` | reserved | Kept for transit investment scenario labeling; currently not applied in core synthesis formulas. |
+| `green_budget` | `float` | `1.0` | yes | Multiplies green budget scalar, increasing/decreasing green access uplift and green network expansion. |
+| `street_conversion_budget` | `float` | `1.0` | yes | Multiplies street conversion scalar, affecting car deemphasis and street priority outcomes. |
+| `intensity_budget` | `float` | `1.0` | yes | Multiplies intensity scalar, shifting FAR allocation and resulting height-cap distribution. |
+| `terrain_sensitivity` | `float` | `1.0` | yes | Multiplies terrain penalty sensitivity, reducing intensity pressure in flood/slope constrained cells. |
+
+Built-in profile values:
+
+| Profile | transit_investment_intensity | green_budget | street_conversion_budget | intensity_budget | terrain_sensitivity |
+|---|---:|---:|---:|---:|---:|
+| `optimistic_courtyard_city` | 1.10 | 1.05 | 1.00 | 1.10 | 1.00 |
+| `green_weave_first` | 0.90 | 1.30 | 1.00 | 0.95 | 1.20 |
+| `transit_corridor_city` | 1.30 | 0.95 | 1.15 | 1.20 | 0.95 |
+| `bike_supergrid_city` | 1.00 | 1.10 | 1.30 | 1.00 | 1.05 |
+
+Boulder examples:
+
+```bash
+# Corridor-first scenario for Boulder
+civicmorph generate \
+  --project-dir runs/boulder_demo \
+  --profile transit_corridor_city \
+  --ensemble 50 \
+  --seed 1
+```
+
+Create a custom profile:
+
+```yaml
+# config/profiles/boulder_balanced_demo.yaml
+name: boulder_balanced_demo
+transit_investment_intensity: 1.2
+green_budget: 1.15
+street_conversion_budget: 1.1
+intensity_budget: 1.05
+terrain_sensitivity: 1.2
+```
+
+```bash
+civicmorph generate \
+  --project-dir runs/boulder_demo \
+  --profile boulder_balanced_demo \
+  --ensemble 50 \
+  --seed 1
+```
+
 ## Output layout
 
 Artifacts are created under `runs/<run_id>/`:

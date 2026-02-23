@@ -9,5 +9,6 @@ The user guide focuses on applying CivicMorph to realistic speculative planning 
    framework_introduction
    framework_workflow
    framework_interoperability
+   profile_parameters
    intermediate_applications
    intermediate_application_scaffolding

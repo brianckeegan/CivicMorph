@@ -51,6 +51,10 @@ Run the Boulder Pipeline
      --project-dir runs/boulder_demo \
      --top 5
 
+Profile parameters for ``--profile`` (definitions, built-in values, and custom YAML examples):
+
+- :doc:`user_guide/profile_parameters`
+
 Alternative OSM Selectors
 -------------------------
 
